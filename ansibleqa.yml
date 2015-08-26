@@ -1,0 +1,48 @@
+- name: Provision instances
+  hosts: localhost
+  vars: slaves=5
+  connection: local
+  gather_facts: False
+  tasks:
+    - name: Provision master
+      ec2:
+        key_name: ansibleqa
+        group: ansibleqa
+        instance_type: m3.large
+        image: ami-12663b7a
+        region: us-east-1
+        vpc_subnet_id: subnet-72f73e2b
+        wait: true
+        exact_count: 1
+        count_tag:
+          Name: jmmaster
+        instance_tags:
+          Name: jmmaster
+      register: jmm
+
+    - name: Add all instance public IPs to host group
+      add_host: hostname={{ item.private_ip }} groups=jmqamaster
+      add_host: hostname={{ item.private_ip }} groups=jmeter
+      with_items: jmm.instances
+
+    - name: Wait for ssh
+      wait_for: host={{item.private_ip}} port=22 delay=60 timeout=420 state=started
+      with_items: jmm.instances
+
+    - name: Pause execution
+      pause: minutes=1
+
+
+
+- hosts: jmeter
+  name: Configure jmeter
+  user: ec2-user
+  gather_facts: false
+  roles:
+    - ansible-jmeter
+
+- hosts: jmqamaster
+  user: ec2-user
+  tasks:
+    - name: terminate instance
+      ec2: state=absent
