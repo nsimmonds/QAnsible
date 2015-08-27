@@ -42,7 +42,7 @@
 
     - name: Add master server to appropriate groups
       add_host: hostname={{ item.private_ip }} groups=jmqamaster
-      add_host: hostname={{ item.private_ip }} groups=jmeter
+      # add_host: hostname={{ item.private_ip }} groups=jmeter
       with_items: jmm.instances
 
     - name: Wipe ids file
@@ -66,11 +66,11 @@
 
     - name: Add slave servers to appropriate groups
       add_host: hostname={{ item.private_ip }} groups=jmqaslaves
-      add_host: hostname={{ item.private_ip }} groups=jmeter
+      # add_host: hostname={{ item.private_ip }} groups=jmeter
       with_items: jms.instances
 
     - name: Wait for ssh
-      wait_for: host={{item.private_ip}} port=22 delay=10 timeout=600 state=started
+      wait_for: host={{ item.private_ip }} port=22 timeout=600 state=started
       with_items: jms.instances
 
     - name: Wait for key to be added to ssh interface
@@ -78,7 +78,7 @@
 
 
 
-- hosts: jmeter
+- hosts: jmqamaster:jmqaslaves
   name: Configuration pass
   user: ubuntu
   sudo: yes
@@ -108,10 +108,33 @@
         src: /usr/share/jmeter/JMeterPlugins-Extras-1.3.0.zip
         dest: /usr/share/jmeter
 
+- name: create host list
+  hosts: localhost
+  connection: local
+  tasks:
+  - debug: msg="{{ item.private_ip }}"
+    with_items: jms.instances
+    register: output
+  # - debug: msg="{{ output.results|map(attribute='msg')|join(',') }}"
+
+- name: Set master server
+  hosts: jmqamaster
+  user: ubuntu
+  sudo: yes
+  gather_facts: false
+  tasks:
+    - name: Push jmx file
+      copy:
+        src: "./{{jmx_file}}"
+        dest: ~/
+    - name: Run jmx file against remote servers
+      command: "jmeter -n -t {{jmx_file}} -R{{ output.results|map(attribute='msg')|join(',') }}"
+
+
 # - name: Terminate instances
 #   hosts: localhost
-#   user: ubuntu
+#   connection: local
 #   tasks:
 #     - name: terminate instance
-#       ec2: state=absent instance_ids={{jms.ids}} key_name=ansibleqa
-#       ec2: state=absent instance_ids={{jmm.ds}} key_name=ansibleqa
+#       ec2: state=absent instance_ids={{jms.id}} key_name=ansibleqa
+#       ec2: state=absent instance_ids={{jmm.id}} key_name=ansibleqa
