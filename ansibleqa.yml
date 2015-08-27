@@ -1,6 +1,8 @@
 - name: Provision instances
   hosts: localhost
-  vars: slaves=5
+  vars:
+    slaves: 5
+    jmx_file: dummy.jmx
   connection: local
   gather_facts: False
   tasks:
@@ -9,9 +11,10 @@
         key_name: ansibleqa
         group: ansibleqa
         instance_type: m3.large
-        image: ami-12663b7a
+        image: ami-d05e75b8
         region: us-east-1
         vpc_subnet_id: subnet-72f73e2b
+        assign_public_ip: yes
         wait: true
         exact_count: 1
         count_tag:
@@ -20,29 +23,66 @@
           Name: jmmaster
       register: jmm
 
-    - name: Add all instance public IPs to host group
-      add_host: hostname={{ item.private_ip }} groups=jmqamaster
-      add_host: hostname={{ item.private_ip }} groups=jmeter
+    # - name: Provision slaves
+    #   ec2:
+    #     key_name: ansibleqa
+    #     group: ansibleqa
+    #     instance_type: m3.medium
+    #     image: ami-d05e75b8
+    #     region: us-east-1
+    #     vpc_subnet_id: subnet-72f73e2b
+    #     assign_public_ip: yes
+    #     wait: true
+    #     exact_count: "{{slaves}}"
+    #     count_tag:
+    #       Name: jmslave
+    #     instance_tags:
+    #       Name: jmslave
+    #   register: jms
+
+    - name: Add master server to appropriate groups
+      add_host: hostname={{ item.public_ip }} groups=jmqamaster
+      add_host: hostname={{ item.public_ip }} groups=jmeter
       with_items: jmm.instances
 
+    # - name: Add slave servers to appropriate groups
+    #   add_host: hostname={{ item.public_ip }} groups=jmqaslaves
+    #   add_host: hostname={{ item.public_ip }} groups=jmeter
+    #   with_items: jms.instances
+
     - name: Wait for ssh
-      wait_for: host={{item.private_ip}} port=22 delay=60 timeout=420 state=started
+      wait_for: host={{item.public_ip}} port=22 delay=10 timeout=600 state=started
       with_items: jmm.instances
 
     - name: Pause execution
-      pause: minutes=1
+      pause: seconds=30
 
 
 
 - hosts: jmeter
-  name: Configure jmeter
-  user: ec2-user
+  name: Configuration pass
+  user: ubuntu
+  sudo: yes
   gather_facts: false
-  roles:
-    - ansible-jmeter
+  tasks:
+    - name: turn off firewall
+      ufw: state=disabled
+    - name: Update cache
+      apt: update_cache=yes upgrade=yes
+    - name: Install jmeter
+      apt: name=jmeter
+    - name: Download plugins
+      get_url:
+        url: http://jmeter-plugins.org/downloads/file/JMeterPlugins-Standard-1.3.0.zip
+        dest: 
+      get_url:
+        url: http://jmeter-plugins.org/downloads/file/JMeterPlugins-Extras-1.3.0.zip
 
-- hosts: jmqamaster
-  user: ec2-user
+
+- name: Terminate instances
+  hosts: localhost
+  user: ubuntu
   tasks:
     - name: terminate instance
-      ec2: state=absent
+      ec2: state=absent instance_ids={{jms.instance_ids}} key_name=ansibleqa
+      ec2: state=absent instance_ids={{jmm.instance_ids}} key_name=ansibleqa
