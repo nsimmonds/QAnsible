@@ -23,38 +23,57 @@
           Name: jmmaster
       register: jmm
 
-    # - name: Provision slaves
-    #   ec2:
-    #     key_name: ansibleqa
-    #     group: ansibleqa
-    #     instance_type: m3.medium
-    #     image: ami-d05e75b8
-    #     region: us-east-1
-    #     vpc_subnet_id: subnet-72f73e2b
-    #     assign_public_ip: yes
-    #     wait: true
-    #     exact_count: "{{slaves}}"
-    #     count_tag:
-    #       Name: jmslave
-    #     instance_tags:
-    #       Name: jmslave
-    #   register: jms
+    - name: Provision slaves
+      ec2:
+        key_name: ansibleqa
+        group: ansibleqa
+        instance_type: m3.medium
+        image: ami-d05e75b8
+        region: us-east-1
+        vpc_subnet_id: subnet-fc39df8b
+        assign_public_ip: yes
+        wait: true
+        exact_count: "{{slaves}}"
+        count_tag:
+          Name: jmslave
+        instance_tags:
+          Name: jmslave
+      register: jms
 
     - name: Add master server to appropriate groups
       add_host: hostname={{ item.private_ip }} groups=jmqamaster
       add_host: hostname={{ item.private_ip }} groups=jmeter
       with_items: jmm.instances
 
-    # - name: Add slave servers to appropriate groups
-    #   add_host: hostname={{ item.private_ip }} groups=jmqaslaves
-    #   add_host: hostname={{ item.private_ip }} groups=jmeter
-    #   with_items: jms.instances
+    - name: Wipe ids file
+      file:
+        dest: ./instanceids
+        state: absent
+
+    - name: Write master instance to file
+      lineinfile:
+        create: yes
+        dest: ./instanceids
+        line: "{{ item.id }}"
+      with_items: jmm.instances
+
+    - name: Write slaves
+      lineinfile:
+        create: yes
+        dest: ./instanceids
+        line: "{{ item.id }}"
+      with_items: jms.instances
+
+    - name: Add slave servers to appropriate groups
+      add_host: hostname={{ item.private_ip }} groups=jmqaslaves
+      add_host: hostname={{ item.private_ip }} groups=jmeter
+      with_items: jms.instances
 
     - name: Wait for ssh
       wait_for: host={{item.private_ip}} port=22 delay=10 timeout=600 state=started
-      with_items: jmm.instances
+      with_items: jms.instances
 
-    - name: Pause execution
+    - name: Wait for key to be added to ssh interface
       pause: seconds=30
 
 
@@ -71,21 +90,28 @@
       apt: update_cache=yes upgrade=yes
     - name: Install jmeter
       apt: name=jmeter
-    - name: Download plugins
+    - name: Download standard plugins
       get_url:
         url: http://jmeter-plugins.org/downloads/file/JMeterPlugins-Standard-1.3.0.zip
-        dest: /usr/bin/jmeter
+        dest: /usr/share/jmeter
+    - name: Download extras
       get_url:
         url: http://jmeter-plugins.org/downloads/file/JMeterPlugins-Extras-1.3.0.zip
-        dest: /usr/bin/jmeter
+        dest: /usr/share/jmeter
     - name: Unzip plugins
-      unarchive: /usr/bin/jmeter/JMeterPlugins-Standard-1.3.0.zip
-      unarchive: /usr/bin/jmeter/JMeterPlugins-Extras-1.3.0.zip
+      unarchive:
+        copy: no
+        src: /usr/share/jmeter/JMeterPlugins-Standard-1.3.0.zip
+        dest: /usr/share/jmeter
+      unarchive:
+        copy: no
+        src: /usr/share/jmeter/JMeterPlugins-Extras-1.3.0.zip
+        dest: /usr/share/jmeter
 
 # - name: Terminate instances
 #   hosts: localhost
 #   user: ubuntu
 #   tasks:
 #     - name: terminate instance
-#       ec2: state=absent instance_ids={{jms.instance_ids}} key_name=ansibleqa
-#       ec2: state=absent instance_ids={{jmm.instance_ids}} key_name=ansibleqa
+#       ec2: state=absent instance_ids={{jms.ids}} key_name=ansibleqa
+#       ec2: state=absent instance_ids={{jmm.ds}} key_name=ansibleqa
