@@ -129,10 +129,10 @@
   tasks:
     - name: Push jmx file
       copy:
-        src: "./dummy.jmx"
+        src: "./{{ jmx_file }}"
         dest: ~/
     - name: Run jmx file against remote servers
-      command: "jmeter -n -t dummy.jmx -R{{ hostvars.localhost.output.results|map(attribute='msg')|join(',') }}"
+      command: "jmeter -n -t /root/{{ jmx_file }} -R{{ hostvars.localhost.output.results|map(attribute='msg')|join(',') }}"
 
 
 # - name: Terminate instances
