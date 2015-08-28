@@ -115,7 +115,11 @@
   - debug: msg="{{ item.private_ip }}"
     with_items: jms.instances
     register: output
-  # - debug: msg="{{ output.results|map(attribute='msg')|join(',') }}"
+    always_run: True
+    changed_when: False
+    run_once: True
+    # delegate_to: jmqamaster
+  # - set_fact: ips={{ output.results|map(attribute='msg')|join(',') }}
 
 - name: Set master server
   hosts: jmqamaster
@@ -125,10 +129,10 @@
   tasks:
     - name: Push jmx file
       copy:
-        src: "./{{jmx_file}}"
+        src: "./dummy.jmx"
         dest: ~/
     - name: Run jmx file against remote servers
-      command: "jmeter -n -t {{jmx_file}} -R{{ output.results|map(attribute='msg')|join(',') }}"
+      command: "jmeter -n -t dummy.jmx -R{{ hostvars.localhost.output.results|map(attribute='msg')|join(',') }}"
 
 
 # - name: Terminate instances
