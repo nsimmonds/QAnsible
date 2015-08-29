@@ -1,8 +1,8 @@
 - name: Provision instances
   hosts: localhost
   vars:
-    slaves: 5
-    jmx_file: dummy.jmx
+    slaves: 1
+    jmx_file: "./dummy.jmx"
   connection: local
   gather_facts: False
   tasks:
@@ -31,7 +31,7 @@
         image: ami-d05e75b8
         region: us-east-1
         vpc_subnet_id: subnet-fc39df8b
-        assign_public_ip: yes
+        # assign_public_ip: yes
         wait: true
         exact_count: "{{slaves}}"
         count_tag:
@@ -79,6 +79,7 @@
 
 
 - hosts: jmqamaster:jmqaslaves
+  gather_facts: false
   name: Configuration pass
   user: ubuntu
   sudo: yes
@@ -87,28 +88,61 @@
     - name: turn off firewall
       ufw: state=disabled
     - name: Update cache
-      apt: update_cache=yes upgrade=yes
-    - name: Install jmeter
-      apt: name=jmeter
+      apt: update_cache=yes
+    - name: Install java
+      apt: name=default-jdk
+    - name: Install Unzip
+      apt: name=unzip
     - name: Download standard plugins
       get_url:
         url: http://jmeter-plugins.org/downloads/file/JMeterPlugins-Standard-1.3.0.zip
-        dest: /usr/share/jmeter
+        dest: ~/
     - name: Download extras
       get_url:
         url: http://jmeter-plugins.org/downloads/file/JMeterPlugins-Extras-1.3.0.zip
-        dest: /usr/share/jmeter
+        dest: ~/
+    - name: Download extras
+      get_url:
+        url: http://archive.apache.org/dist/jmeter/binaries/apache-jmeter-2.9.zip
+        dest: ~/
+    - name: Unzip jmeter
+      unarchive:
+        copy: no
+        src: /root/apache-jmeter-2.9.zip
+        dest: /home/ubuntu
+    - name: Wait for zip
+      wait_for:
+        path: /home/ubuntu/apache-jmeter-2.9
+        state: present
     - name: Unzip plugins
       unarchive:
         copy: no
-        src: /usr/share/jmeter/JMeterPlugins-Standard-1.3.0.zip
-        dest: /usr/share/jmeter
+        src: /root/JMeterPlugins-Standard-1.3.0.zip
+        dest: /home/ubuntu/apache-jmeter-2.9
       unarchive:
         copy: no
-        src: /usr/share/jmeter/JMeterPlugins-Extras-1.3.0.zip
-        dest: /usr/share/jmeter
+        src: /root/JMeterPlugins-Extras-1.3.0.zip
+        dest: /home/ubuntu/apache-jmeter-2.9
+    - name: Change owner
+      file:
+        path: /home/ubuntu
+        recurse: yes
+        owner: ubuntu
+        group: sudo
+        mode: 0755
+
+
+- name: Start jmeter server
+  # gather_facts: false
+  hosts: jmqaslaves
+  user: ubuntu
+  sudo: yes
+  tasks:
+  - name: Run command
+    shell: nohup /home/ubuntu/apache-jmeter-2.9/bin/jmeter-server -Djava.rmi.server.hostname={{ ansible_eth0.ipv4.address }} &
 
 - name: create host list
+  gather_facts: false
   hosts: localhost
   connection: local
   tasks:
@@ -122,6 +156,7 @@
   # - set_fact: ips={{ output.results|map(attribute='msg')|join(',') }}
 
 - name: Set master server
+  gather_facts: false
   hosts: jmqamaster
   user: ubuntu
   sudo: yes
@@ -131,14 +166,22 @@
       copy:
         src: "./{{ jmx_file }}"
         dest: ~/
+    - name: Move file
+      command: "mv ~/{{ jmx_file }} /home/ubuntu"
+
+- name: Run test
+  gather_facts: false
+  hosts: jmqamaster
+  user: ubuntu
+  tasks:
     - name: Run jmx file against remote servers
-      command: "jmeter -n -t /root/{{ jmx_file }} -R{{ hostvars.localhost.output.results|map(attribute='msg')|join(',') }}"
+      shell: /home/ubuntu/apache-jmeter-2.9/bin/jmeter -n -t ~/{{ jmx_file }} -R{{ hostvars.localhost.output.results|map(attribute='msg')|join(',') }}
 
 
-# - name: Terminate instances
-#   hosts: localhost
-#   connection: local
-#   tasks:
-#     - name: terminate instance
-#       ec2: state=absent instance_ids={{jms.id}} key_name=ansibleqa
-#       ec2: state=absent instance_ids={{jmm.id}} key_name=ansibleqa
+- name: Terminate instances
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: terminate instance
+      ec2: state=absent instance_ids={{jms.id}} key_name=ansibleqa
+      ec2: state=absent instance_ids={{jmm.id}} key_name=ansibleqa
