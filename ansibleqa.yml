@@ -188,8 +188,9 @@
   hosts: localhost
   connection: local
   tasks:
-    - name: terminate instance
+    - name: terminate slaves
       ec2: state=absent instance_ids={{item.id}} key_name=ansibleqa region=us-east-1
       with_items: jms.instances
+    - name: terminate master
       ec2: state=absent instance_ids={{item.id}} key_name=ansibleqa region=us-east-1
       with_items: jmm.instances

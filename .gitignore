@@ -3,3 +3,5 @@ instanceids
 instanceids.*
 
 KarenTest.jmx
+
+results/*
