@@ -100,7 +100,7 @@
       get_url:
         url: http://jmeter-plugins.org/downloads/file/JMeterPlugins-Extras-1.3.0.zip
         dest: ~/
-    - name: Download extras
+    - name: Download jmeter
       get_url:
         url: http://archive.apache.org/dist/jmeter/binaries/apache-jmeter-2.9.zip
         dest: ~/
@@ -184,12 +184,12 @@
         src: jmeter.log
         dest: ./results
 
-# - name: Terminate instances
-#   hosts: localhost
-#   connection: local
-#   tasks:
-#     - name: terminate instance
-#       ec2: state=absent instance_ids={{item.id}} key_name=ansibleqa region=us-east-1
-#       with_items: jms.instances
-#       ec2: state=absent instance_ids={{item.id}} key_name=ansibleqa region=us-east-1
-#       with_items: jms.instances
+- name: Terminate instances
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: terminate instance
+      ec2: state=absent instance_ids={{item.id}} key_name=ansibleqa region=us-east-1
+      with_items: jms.instances
+      ec2: state=absent instance_ids={{item.id}} key_name=ansibleqa region=us-east-1
+      with_items: jmm.instances
