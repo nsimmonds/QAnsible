@@ -1,3 +1,5 @@
 *.pem
 instanceids
 instanceids.*
+
+KarenTest.jmx

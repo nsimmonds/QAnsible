@@ -1,10 +1,9 @@
 - name: Provision instances
   hosts: localhost
-  vars:
-    slaves: 1
-    jmx_file: "./dummy.jmx"
   connection: local
   gather_facts: False
+  vars:
+    slaves: 1
   tasks:
     - name: Provision master
       ec2:
@@ -176,12 +175,21 @@
   tasks:
     - name: Run jmx file against remote servers
       shell: /home/ubuntu/apache-jmeter-2.9/bin/jmeter -n -t ~/{{ jmx_file }} -R{{ hostvars.localhost.output.results|map(attribute='msg')|join(',') }}
+    - name: Retrieve results
+      fetch:
+        src: "{{ results }}"
+        dest: ./results
+    - name: Retrieve log
+      fetch:
+        src: jmeter.log
+        dest: ./results
 
-
-- name: Terminate instances
-  hosts: localhost
-  connection: local
-  tasks:
-    - name: terminate instance
-      ec2: state=absent instance_ids={{jms.id}} key_name=ansibleqa
-      ec2: state=absent instance_ids={{jmm.id}} key_name=ansibleqa
+# - name: Terminate instances
+#   hosts: localhost
+#   connection: local
+#   tasks:
+#     - name: terminate instance
+#       ec2: state=absent instance_ids={{item.id}} key_name=ansibleqa region=us-east-1
+#       with_items: jms.instances
+#       ec2: state=absent instance_ids={{item.id}} key_name=ansibleqa region=us-east-1
+#       with_items: jms.instances
