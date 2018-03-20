@@ -10,9 +10,9 @@
         key_name: ansibleqa
         group: ansibleqa
         instance_type: m3.large
-        image: ami-d05e75b8
+        image: <insert AMI id>
         region: us-east-1
-        vpc_subnet_id: subnet-fc39df8b
+        vpc_subnet_id: <insert subnet id>
         # assign_public_ip: yes
         wait: true
         exact_count: 1
@@ -27,9 +27,9 @@
         key_name: ansibleqa
         group: ansibleqa
         instance_type: m3.medium
-        image: ami-d05e75b8
+        image: <insert AMI id>
         region: us-east-1
-        vpc_subnet_id: subnet-fc39df8b
+        vpc_subnet_id: <insert subnet id>
         # assign_public_ip: yes
         wait: true
         exact_count: "{{slaves}}"
